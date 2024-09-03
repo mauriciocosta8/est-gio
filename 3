@@ -1,0 +1,88 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "cJSON.h"
+
+
+char* lerArquivo(const char* nomeArquivo) {
+    FILE* arquivo = fopen(nomeArquivo, "r");
+    if (arquivo == NULL) {
+        printf("Erro ao abrir o arquivo.\n");
+        return NULL;
+    }
+
+    fseek(arquivo, 0, SEEK_END);
+    long tamanhoArquivo = ftell(arquivo);
+    rewind(arquivo);
+
+    char* conteudo = (char*)malloc((tamanhoArquivo + 1) * sizeof(char));
+    fread(conteudo, sizeof(char), tamanhoArquivo, arquivo);
+    conteudo[tamanhoArquivo] = '\0';
+
+    fclose(arquivo);
+    return conteudo;
+}
+
+
+int main() {
+    char* jsonString = lerArquivo("faturamento.json");
+
+    if (jsonString == NULL) {
+        return 1;
+    }
+
+    cJSON* json = cJSON_Parse(jsonString);
+    if (json == NULL) {
+        printf("Erro ao fazer parsing do JSON.\n");
+        free(jsonString);
+        return 1;
+    }
+
+    cJSON* dias = cJSON_GetObjectItem(json, "dias");
+    if (!cJSON_IsArray(dias)) {
+        printf("Formato de JSON inválido.\n");
+        cJSON_Delete(json);
+        free(jsonString);
+        return 1;
+    }
+
+    int totalDias = cJSON_GetArraySize(dias);
+    double menorValor = __DBL_MAX__, maiorValor = -__DBL_MAX__, soma = 0;
+    int diasComFaturamento = 0, diasAcimaMedia = 0;
+
+    for (int i = 0; i < totalDias; i++) {
+        cJSON* dia = cJSON_GetArrayItem(dias, i);
+        double valor = cJSON_GetObjectItem(dia, "faturamento")->valuedouble;
+
+        if (valor > 0) {
+            if (valor < menorValor) {
+                menorValor = valor;
+            }
+            if (valor > maiorValor) {
+                maiorValor = valor;
+            }
+            soma += valor;
+            diasComFaturamento++;
+        }
+    }
+
+    double media = soma / diasComFaturamento;
+
+    for (int i = 0; i < totalDias; i++) {
+        cJSON* dia = cJSON_GetArrayItem(dias, i);
+        double valor = cJSON_GetObjectItem(dia, "faturamento")->valuedouble;
+
+        if (valor > media) {
+            diasAcimaMedia++;
+        }
+    }
+
+    printf("Menor valor de faturamento: %.2f\n", menorValor);
+    printf("Maior valor de faturamento: %.2f\n", maiorValor);
+    printf("Dias com faturamento acima da média: %d\n", diasAcimaMedia);
+
+    cJSON_Delete(json);
+    free(jsonString);
+
+    return 0;
+}
